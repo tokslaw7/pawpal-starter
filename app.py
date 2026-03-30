@@ -36,6 +36,15 @@ At minimum, your system should:
 """
     )
 
+from pawpal_system import (
+    PetManagementSystem,
+    PetOwner,
+    Pet,
+    PetCareTask,
+    Constraint,
+    TaskType,
+)
+
 st.divider()
 
 st.subheader("Quick Demo Inputs (UI only)")
@@ -74,15 +83,42 @@ st.subheader("Build Schedule")
 st.caption("This button should call your scheduling logic once you implement it.")
 
 if st.button("Generate schedule"):
-    st.warning(
-        "Not implemented yet. Next step: create your scheduling logic (classes/functions) and call it here."
+    system = PetManagementSystem(system_id="sys-1")
+    owner = PetOwner(owner_id="owner-1", name=owner_name, email="noreply@example.com", phone="000-000-0000")
+    system.add_pet_owner(owner)
+
+    pet = Pet(
+        pet_id="pet-1",
+        name=pet_name,
+        species=species,
+        breed="Unknown",
+        age=1,
+        weight=5.0,
+        special_needs="None",
+        owner=owner,
     )
-    st.markdown(
-        """
-Suggested approach:
-1. Design your UML (draft).
-2. Create class stubs (no logic).
-3. Implement scheduling behavior.
-4. Connect your scheduler here and display results.
-"""
-    )
+    owner.add_pet(pet)
+
+    for idx, task_data in enumerate(st.session_state.tasks, start=1):
+        task = PetCareTask(
+            task_id=f"task-{idx}",
+            task_type=TaskType.FEEDING if task_data["title"].lower().find("feed") >= 0 else TaskType.WALKING,
+            pet=pet,
+            description=task_data["title"],
+            duration=task_data["duration_minutes"],
+            priority=9 if task_data["priority"] == "high" else 5,
+            status="PENDING",
+            assigned_time=datetime.now(),
+        )
+        pet.add_task(task)
+
+    plan = system.generate_daily_plan(owner, date.today())
+    plan.optimize_plan()
+
+    st.success("Schedule generated!")
+    st.write(plan.generate_schedule())
+
+    if plan.validate_against_constraints():
+        st.info("Constraints check passed")
+    else:
+        st.warning("Some tasks violate constraints")
