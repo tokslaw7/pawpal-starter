@@ -32,6 +32,20 @@ Recent scheduling improvements include:
 - Conflict detection for overlapping task durations, with clear warnings when tasks collide.
 - Constraint-aware validation that checks both owner constraints and schedule conflicts.
 
+## Testing Pawpal+
+
+Run the automated tests with:
+
+python -m pytest
+
+Current tests focus on core scheduling reliability, including:
+
+- Marking tasks complete and recording completion timestamps.
+- Adding tasks to pets and confirming task list updates.
+- Generating/sorting daily plans, filtering by pet/status, and including recurring tasks.
+- Auto-creating the next daily recurring task after completion.
+- Detecting overlaps between scheduled tasks to surface conflicts.
+
 ## Getting started
 
 ### Setup

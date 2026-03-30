@@ -1,4 +1,5 @@
 import streamlit as st
+from datetime import date, datetime
 
 st.set_page_config(page_title="PawPal+", page_icon="🐾", layout="centered")
 
@@ -83,6 +84,10 @@ st.subheader("Build Schedule")
 st.caption("This button should call your scheduling logic once you implement it.")
 
 if st.button("Generate schedule"):
+    if not st.session_state.tasks:
+        st.warning("Add at least one task before generating a schedule.")
+        st.stop()
+
     system = PetManagementSystem(system_id="sys-1")
     owner = PetOwner(owner_id="owner-1", name=owner_name, email="noreply@example.com", phone="000-000-0000")
     system.add_pet_owner(owner)
@@ -100,9 +105,11 @@ if st.button("Generate schedule"):
     owner.add_pet(pet)
 
     for idx, task_data in enumerate(st.session_state.tasks, start=1):
+        title_lower = task_data["title"].lower()
+        task_type = TaskType.FEEDING if "feed" in title_lower else TaskType.WALKING
         task = PetCareTask(
             task_id=f"task-{idx}",
-            task_type=TaskType.FEEDING if task_data["title"].lower().find("feed") >= 0 else TaskType.WALKING,
+            task_type=task_type,
             pet=pet,
             description=task_data["title"],
             duration=task_data["duration_minutes"],
