@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from enum import Enum
 from typing import List, Optional
 
@@ -48,7 +48,9 @@ class PetManagementSystem:
 		plan.constraints = list(owner.constraints)
 		for pet in owner.pets:
 			for task in pet.tasks:
-				plan.add_task(task)
+				instance = task.get_instance_for_date(plan_date)
+				if instance is not None:
+					plan.add_task(instance)
 		self.daily_plans.append(plan)
 		return plan
 
@@ -150,6 +152,8 @@ class PetCareTask:
 		status: str,
 		assigned_time: Optional[datetime] = None,
 		completed_time: Optional[datetime] = None,
+		recurrence: Optional[str] = None,
+		recurrence_end_date: Optional[date] = None,
 	) -> None:
 		self.task_id: str = task_id
 		self.task_type: TaskType = task_type
@@ -160,6 +164,8 @@ class PetCareTask:
 		self.status: str = status
 		self.assigned_time: Optional[datetime] = assigned_time
 		self.completed_time: Optional[datetime] = completed_time
+		self.recurrence: Optional[str] = recurrence
+		self.recurrence_end_date: Optional[date] = recurrence_end_date
 
 	def mark_complete(self) -> None:
 		"""Mark this task as completed and record completion time."""
@@ -177,6 +183,50 @@ class PetCareTask:
 	def is_urgent(self) -> bool:
 		"""Determine whether this task is urgent with priority or medical type."""
 		return self.priority >= 8 or self.task_type == TaskType.MEDICAL
+
+	def get_end_time(self) -> Optional[datetime]:
+		"""Return the expected end datetime for this task (assigned_time + duration)."""
+		if self.assigned_time is None:
+			return None
+		return self.assigned_time + timedelta(minutes=self.duration)
+
+	def occurs_on(self, target_date: date) -> bool:
+		"""Return whether this task instance should occur on a given date."""
+		if self.assigned_time is None:
+			return False
+		start_date = self.assigned_time.date()
+		if target_date < start_date:
+			return False
+		if self.recurrence_end_date and target_date > self.recurrence_end_date:
+			return False
+		if self.recurrence is None:
+			return target_date == start_date
+		if self.recurrence.upper() == "DAILY":
+			return True
+		if self.recurrence.upper() == "WEEKLY":
+			return (target_date - start_date).days % 7 == 0
+		if self.recurrence.upper() == "MONTHLY":
+			return start_date.day == target_date.day
+		return False
+
+	def get_instance_for_date(self, target_date: date) -> Optional["PetCareTask"]:
+		"""Return a cloned task instance for the requested date if it occurs."""
+		if not self.occurs_on(target_date):
+			return None
+		new_time = datetime.combine(target_date, self.assigned_time.time()) if self.assigned_time else None
+		return PetCareTask(
+			task_id=f"{self.task_id}-{target_date.isoformat()}",
+			task_type=self.task_type,
+			pet=self.pet,
+			description=self.description,
+			duration=self.duration,
+			priority=self.priority,
+			status=self.status,
+			assigned_time=new_time,
+			completed_time=self.completed_time,
+			recurrence=self.recurrence,
+			recurrence_end_date=self.recurrence_end_date,
+		)
 
 
 class Constraint:
@@ -252,16 +302,49 @@ class DailyPlan:
 		"""Optimize task order based on task priority and duration."""
 		self.tasks.sort(key=lambda t: (-t.priority, t.task_type.name, t.duration))
 
+	def sort_tasks_by_time(self) -> None:
+		"""Sort tasks by assigned datetime to produce time-ordered schedule."""
+		self.tasks.sort(key=lambda t: (t.assigned_time or datetime.max))
+
+	def filter_tasks(self, pet_id: Optional[str] = None, status: Optional[str] = None) -> List[PetCareTask]:
+		"""Filter tasks by pet and/or status."""
+		return [
+			t for t in self.tasks
+			if (pet_id is None or t.pet.pet_id == pet_id)
+			and (status is None or t.status.upper() == status.upper())
+		]
+
+	def detect_conflicts(self) -> List[tuple[PetCareTask, PetCareTask]]:
+		"""Detect overlapping task time conflicts. Returns a list of conflicting pairs."""
+		conflicts: List[tuple[PetCareTask, PetCareTask]] = []
+		tasks_with_time = [t for t in self.tasks if t.assigned_time is not None and t.duration > 0]
+		tasks_with_time.sort(key=lambda t: t.assigned_time)
+		for i in range(len(tasks_with_time)):
+			current = tasks_with_time[i]
+			current_end = current.get_end_time()
+			for next_task in tasks_with_time[i + 1 :]:
+				if next_task.assigned_time >= current_end:
+					break
+				conflicts.append((current, next_task))
+		return conflicts
+
+	def validate_conflicts(self) -> bool:
+		"""Return False if any time conflicts are detected."""
+		return len(self.detect_conflicts()) == 0
+
 	def generate_schedule(self) -> str:
 		"""Generate a human-readable schedule string for today."""
+		self.sort_tasks_by_time()
 		lines = []
 		for t in self.tasks:
 			when = t.assigned_time.isoformat() if t.assigned_time else "unassigned"
-			lines.append(f"{when} - {t.task_type.name}: {t.description} ({t.pet.name})")
+			lines.append(f"{when} - {t.task_type.name}: {t.description} ({t.pet.name}) [{t.status}]")
 		return "\n".join(lines)
 
 	def validate_against_constraints(self) -> bool:
 		"""Validate tasks against all constraints and return True if none are violated."""
+		if not self.validate_conflicts():
+			return False
 		for task in self.tasks:
 			if any(constraint.is_violated(task) for constraint in self.constraints):
 				return False

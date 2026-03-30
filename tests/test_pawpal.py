@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from pawpal_system import Pet, PetCareTask, PetOwner, TaskType
+from pawpal_system import Pet, PetCareTask, PetOwner, PetManagementSystem, TaskType
 
 
 def test_task_completion_marks_status_completed() -> None:
@@ -70,3 +70,77 @@ def test_pet_add_task_increases_task_count() -> None:
 
     assert len(pet.tasks) == initial_task_count + 1
     assert pet.tasks[0] == task
+
+
+def test_sort_tasks_by_time_and_filter_conflicts_and_recurring() -> None:
+    owner = PetOwner(owner_id="owner-1", name="Alex", email="alex@example.com", phone="123-456-7890")
+    pet = Pet(
+        pet_id="pet-3",
+        name="Buddy",
+        species="Dog",
+        breed="Labrador",
+        age=5,
+        weight=25.0,
+        special_needs="None",
+        owner=owner,
+    )
+    owner.add_pet(pet)
+
+    task1 = PetCareTask(
+        task_id="task-3",
+        task_type=TaskType.WALKING,
+        pet=pet,
+        description="Morning walk",
+        duration=30,
+        priority=6,
+        status="PENDING",
+        assigned_time=datetime.combine(date.today(), time(hour=7, minute=0)),
+    )
+
+    task2 = PetCareTask(
+        task_id="task-4",
+        task_type=TaskType.FEEDING,
+        pet=pet,
+        description="Breakfast",
+        duration=20,
+        priority=8,
+        status="PENDING",
+        assigned_time=datetime.combine(date.today(), time(hour=7, minute=15)),
+    )
+
+    task3 = PetCareTask(
+        task_id="task-5",
+        task_type=TaskType.MEDICAL,
+        pet=pet,
+        description="Daily meds",
+        duration=10,
+        priority=9,
+        status="PENDING",
+        assigned_time=datetime.combine(date.today(), time(hour=7, minute=10)),
+        recurrence="DAILY",
+        recurrence_end_date=date.today(),
+    )
+
+    pet.add_task(task1)
+    pet.add_task(task2)
+    pet.add_task(task3)
+
+    system = PetManagementSystem(system_id="sys-1")
+    system.add_pet_owner(owner)
+    plan = system.generate_daily_plan(owner, date.today())
+
+    # Tasks should be created and sorted by time in schedule output
+    schedule_lines = plan.generate_schedule().splitlines()
+    assert "07:00" in schedule_lines[0]
+
+    # Recurring task included
+    assert any("Daily meds" in line for line in schedule_lines)
+
+    # Conflicts: task1 and task2 overlap at 7:15
+    conflicts = plan.detect_conflicts()
+    assert len(conflicts) >= 1
+
+    # Filter by pet/status
+    dog_tasks = plan.filter_tasks(pet_id="pet-3", status="PENDING")
+    assert len(dog_tasks) == 3
+
