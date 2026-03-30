@@ -22,6 +22,16 @@ Your final app should:
 - Display the plan clearly (and ideally explain the reasoning)
 - Include tests for the most important scheduling behaviors
 
+## Smarter Scheduling
+
+Recent scheduling improvements include:
+
+- Time-based sorting so daily plans are shown in chronological order.
+- Task filtering by pet and completion status (for example, pending vs completed).
+- Recurring task support (daily, weekly, monthly) with daily auto-rescheduling on completion.
+- Conflict detection for overlapping task durations, with clear warnings when tasks collide.
+- Constraint-aware validation that checks both owner constraints and schedule conflicts.
+
 ## Getting started
 
 ### Setup

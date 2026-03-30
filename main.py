@@ -56,7 +56,18 @@ def main() -> None:
     )
     owner.add_constraint(owner_constraint)
 
-    # create tasks
+    # create tasks (intentionally out of chronological order to verify sort)
+    task3 = PetCareTask(
+        task_id="task-3",
+        task_type=TaskType.MEDICAL,
+        pet=pet2,
+        description="Medicine dose",
+        duration=10,
+        priority=9,
+        status="PENDING",
+        assigned_time=datetime.combine(date.today(), time(hour=18, minute=0)),
+    )
+
     task1 = PetCareTask(
         task_id="task-1",
         task_type=TaskType.FEEDING,
@@ -72,38 +83,58 @@ def main() -> None:
         task_id="task-2",
         task_type=TaskType.WALKING,
         pet=pet1,
-        description="Morning walk",
+        description="Morning walk (same start as feeding to test conflicts)",
         duration=30,
         priority=7,
         status="PENDING",
-        assigned_time=datetime.combine(date.today(), time(hour=8, minute=30)),
+        assigned_time=datetime.combine(date.today(), time(hour=8, minute=0)),
     )
 
-    task3 = PetCareTask(
-        task_id="task-3",
-        task_type=TaskType.MEDICAL,
-        pet=pet2,
-        description="Medicine dose",
-        duration=10,
-        priority=9,
+    task4 = PetCareTask(
+        task_id="task-4",
+        task_type=TaskType.GROOMING,
+        pet=pet1,
+        description="Evening brushing",
+        duration=20,
+        priority=4,
         status="PENDING",
-        assigned_time=datetime.combine(date.today(), time(hour=18, minute=0)),
+        assigned_time=datetime.combine(date.today(), time(hour=19, minute=0)),
     )
 
+    pet2.add_task(task3)
     pet1.add_task(task1)
     pet1.add_task(task2)
-    pet2.add_task(task3)
+    pet1.add_task(task4)
 
     # add tasks to schedule generating structures
     daily_plan = system.generate_daily_plan(owner, date.today())
 
-    # print today's schedule
-    print("Today's Schedule:")
+    # print today's schedule (sorted by assigned time via generate_schedule)
+    print("Today's Schedule (sorted):")
     print(daily_plan.generate_schedule())
 
-    # validate constraints
+    # validate constraints and conflicts
     valid = daily_plan.validate_against_constraints()
-    print(f"Constraints valid: {valid}")
+    print(f"Constraints and conflict check passed: {valid}")
+
+    # show filtered views
+    print("\nPending tasks for Milo:")
+    for t in daily_plan.filter_tasks(pet_id="pet-1", status="PENDING"):
+        print(f"  - {t.assigned_time.time()} {t.task_type.name} ({t.description})")
+
+    print("\nMarking first task completed and filtering completed tasks:")
+    if daily_plan.tasks:
+        daily_plan.tasks[0].mark_complete()
+    for t in daily_plan.filter_by_status("COMPLETED"):
+        print(f"  - {t.assigned_time.time()} {t.task_type.name} ({t.description})")
+
+    conflicts = daily_plan.detect_conflicts()
+    print(f"\nDetected conflicts: {len(conflicts)}")
+    if conflicts:
+        print("WARNING: schedule has overlapping tasks that need rescheduling.")
+    for a, b in conflicts:
+        print(f"  - {a.task_id} overlaps with {b.task_id}")
+
 
 
 if __name__ == "__main__":

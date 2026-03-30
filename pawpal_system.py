@@ -43,7 +43,12 @@ class PetManagementSystem:
 		owner.add_constraint(constraint)
 
 	def generate_daily_plan(self, owner: PetOwner, plan_date: date) -> DailyPlan:
-		"""Generate a daily plan for an owner by collecting all pet tasks and constraints."""
+		"""Build a plan for one day, including recurring task instances.
+
+		The planner copies owner constraints, then expands each pet task into a
+		task instance for ``plan_date`` using ``get_instance_for_date``. This keeps
+		the owner's source task definitions separate from day-specific plan entries.
+		"""
 		plan = DailyPlan(plan_id=f"plan-{owner.owner_id}-{plan_date.isoformat()}", plan_date=plan_date, owner=owner, created_at=datetime.now())
 		plan.constraints = list(owner.constraints)
 		for pet in owner.pets:
@@ -167,10 +172,38 @@ class PetCareTask:
 		self.recurrence: Optional[str] = recurrence
 		self.recurrence_end_date: Optional[date] = recurrence_end_date
 
-	def mark_complete(self) -> None:
-		"""Mark this task as completed and record completion time."""
+	def mark_complete(self) -> Optional[PetCareTask]:
+		"""Complete this task and optionally schedule the next daily occurrence.
+
+		Returns:
+			A newly created ``PetCareTask`` for the next day when recurrence is
+			``DAILY`` and still within ``recurrence_end_date``; otherwise ``None``.
+		"""
 		self.status = "COMPLETED"
 		self.completed_time = datetime.now()
+
+		# Auto-reschedule daily recurrence for the next day.
+		next_task: Optional[PetCareTask] = None
+		if self.recurrence and self.recurrence.upper() == "DAILY" and self.assigned_time:
+			current_date = self.assigned_time.date()
+			next_date = current_date + timedelta(days=1)
+			if self.recurrence_end_date is None or next_date <= self.recurrence_end_date:
+				new_time = datetime.combine(next_date, self.assigned_time.time())
+				new_task = PetCareTask(
+					task_id=f"{self.task_id}-{next_date.isoformat()}",
+					task_type=self.task_type,
+					pet=self.pet,
+					description=self.description,
+					duration=self.duration,
+					priority=self.priority,
+					status="PENDING",
+					assigned_time=new_time,
+					recurrence=self.recurrence,
+					recurrence_end_date=self.recurrence_end_date,
+				)
+				self.pet.add_task(new_task)
+				next_task = new_task
+		return next_task
 
 	def update_status(self, status: str) -> None:
 		"""Update the status of this task."""
@@ -185,13 +218,20 @@ class PetCareTask:
 		return self.priority >= 8 or self.task_type == TaskType.MEDICAL
 
 	def get_end_time(self) -> Optional[datetime]:
-		"""Return the expected end datetime for this task (assigned_time + duration)."""
+		"""Compute task end time as ``assigned_time + duration`` minutes.
+
+		Returns ``None`` when the task has no assigned start time.
+		"""
 		if self.assigned_time is None:
 			return None
 		return self.assigned_time + timedelta(minutes=self.duration)
 
 	def occurs_on(self, target_date: date) -> bool:
-		"""Return whether this task instance should occur on a given date."""
+		"""Evaluate recurrence rules to determine if task should run on a date.
+
+		Supported recurrence values are ``DAILY``, ``WEEKLY``, and ``MONTHLY``.
+		When recurrence is unset, the task only occurs on its original assigned date.
+		"""
 		if self.assigned_time is None:
 			return False
 		start_date = self.assigned_time.date()
@@ -210,7 +250,12 @@ class PetCareTask:
 		return False
 
 	def get_instance_for_date(self, target_date: date) -> Optional["PetCareTask"]:
-		"""Return a cloned task instance for the requested date if it occurs."""
+		"""Create a date-specific task instance when recurrence includes target date.
+
+		The returned task is a shallow clone with a deterministic date-stamped
+		identifier (``<task_id>-<YYYY-MM-DD>``) and a start time aligned to
+		``target_date``.
+		"""
 		if not self.occurs_on(target_date):
 			return None
 		new_time = datetime.combine(target_date, self.assigned_time.time()) if self.assigned_time else None
@@ -303,19 +348,37 @@ class DailyPlan:
 		self.tasks.sort(key=lambda t: (-t.priority, t.task_type.name, t.duration))
 
 	def sort_tasks_by_time(self) -> None:
-		"""Sort tasks by assigned datetime to produce time-ordered schedule."""
+		"""Sort tasks chronologically by assigned start time.
+
+		Tasks without ``assigned_time`` are moved to the end of the list.
+		"""
 		self.tasks.sort(key=lambda t: (t.assigned_time or datetime.max))
 
 	def filter_tasks(self, pet_id: Optional[str] = None, status: Optional[str] = None) -> List[PetCareTask]:
-		"""Filter tasks by pet and/or status."""
+		"""Return tasks matching optional pet and status criteria.
+
+		Arguments are optional and composable: when both are provided, both filters
+		must match.
+		"""
 		return [
 			t for t in self.tasks
 			if (pet_id is None or t.pet.pet_id == pet_id)
 			and (status is None or t.status.upper() == status.upper())
 		]
 
+	def filter_by_status(self, status: str) -> List[PetCareTask]:
+		"""Return tasks whose status matches ``status`` (case-insensitive)."""
+		return [t for t in self.tasks if t.status.upper() == status.upper()]
+
 	def detect_conflicts(self) -> List[tuple[PetCareTask, PetCareTask]]:
-		"""Detect overlapping task time conflicts. Returns a list of conflicting pairs."""
+		"""Detect overlaps between timed tasks and return conflicting task pairs.
+
+		Algorithm:
+		1. Keep only tasks with valid start time and positive duration.
+		2. Sort by start time.
+		3. For each task, compare forward until the next task starts after current
+		   task's end; stop early for efficiency.
+		"""
 		conflicts: List[tuple[PetCareTask, PetCareTask]] = []
 		tasks_with_time = [t for t in self.tasks if t.assigned_time is not None and t.duration > 0]
 		tasks_with_time.sort(key=lambda t: t.assigned_time)
@@ -329,7 +392,7 @@ class DailyPlan:
 		return conflicts
 
 	def validate_conflicts(self) -> bool:
-		"""Return False if any time conflicts are detected."""
+		"""Return ``True`` only when no overlapping task conflicts exist."""
 		return len(self.detect_conflicts()) == 0
 
 	def generate_schedule(self) -> str:
@@ -342,7 +405,12 @@ class DailyPlan:
 		return "\n".join(lines)
 
 	def validate_against_constraints(self) -> bool:
-		"""Validate tasks against all constraints and return True if none are violated."""
+		"""Validate both scheduling conflicts and owner constraints.
+
+		A plan is considered valid only when:
+		1. No task-overlap conflicts are detected.
+		2. Every task satisfies all active owner constraints.
+		"""
 		if not self.validate_conflicts():
 			return False
 		for task in self.tasks:

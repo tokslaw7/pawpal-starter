@@ -23,8 +23,8 @@
 
 **b. Tradeoffs**
 
-- Describe one tradeoff your scheduler makes.
-- Why is that tradeoff reasonable for this scenario?
+- One tradeoff in this scheduler is using a simpler conflict rule that only checks exact task start-time matches instead of fully evaluating overlapping durations between tasks.
+- This is reasonable for this project because it keeps the logic easy to understand and implement quickly, while still catching the most obvious collisions that a pet owner would want to fix first.
 
 ---
 

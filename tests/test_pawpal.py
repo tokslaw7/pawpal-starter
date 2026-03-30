@@ -1,4 +1,4 @@
-from datetime import datetime, date, time
+from datetime import datetime, date, time, timedelta
 import sys
 from pathlib import Path
 
@@ -143,4 +143,112 @@ def test_sort_tasks_by_time_and_filter_conflicts_and_recurring() -> None:
     # Filter by pet/status
     dog_tasks = plan.filter_tasks(pet_id="pet-3", status="PENDING")
     assert len(dog_tasks) == 3
+
+    # Filter by explicit status helper
+    completed = plan.filter_by_status("COMPLETED")
+    assert len(completed) == 0
+
+    # Mark task inside plan as completed
+    first_plan_task = plan.tasks[0]
+    first_plan_task.mark_complete()
+    assert len(plan.filter_by_status("COMPLETED")) == 1
+
+
+def test_daily_task_completion_creates_next_occurrence() -> None:
+    owner = PetOwner(owner_id="owner-4", name="Casey", email="casey@example.com", phone="987-654-3210")
+    pet = Pet(
+        pet_id="pet-4",
+        name="Luna",
+        species="Cat",
+        breed="Maine Coon",
+        age=2,
+        weight=10.0,
+        special_needs="Indoor only",
+        owner=owner,
+    )
+    owner.add_pet(pet)
+
+    base_task = PetCareTask(
+        task_id="task-6",
+        task_type=TaskType.MEDICAL,
+        pet=pet,
+        description="Daily vitamins",
+        duration=10,
+        priority=6,
+        status="PENDING",
+        assigned_time=datetime.combine(date.today(), time(hour=20, minute=0)),
+        recurrence="DAILY",
+        recurrence_end_date=date.today() + timedelta(days=2),
+    )
+
+    pet.add_task(base_task)
+    new_task = base_task.mark_complete()
+
+    assert base_task.status == "COMPLETED"
+    assert new_task is not None
+    assert new_task.task_id == f"task-6-{(date.today()+timedelta(days=1)).isoformat()}"
+    assert new_task.assigned_time.date() == date.today() + timedelta(days=1)
+    assert any(t.task_id == new_task.task_id for t in pet.tasks)
+
+
+def test_detect_task_conflicts() -> None:
+    owner = PetOwner(owner_id="owner-5", name="Jordan", email="jordan@example.com", phone="111-222-3333")
+    pet = Pet(
+        pet_id="pet-5",
+        name="Nova",
+        species="Dog",
+        breed="Mixed",
+        age=4,
+        weight=22.0,
+        special_needs="None",
+        owner=owner,
+    )
+    owner.add_pet(pet)
+
+    # 09:00-09:30 overlaps with 09:15-09:25; 10:00 task does not overlap.
+    t1 = PetCareTask(
+        task_id="task-7",
+        task_type=TaskType.WALKING,
+        pet=pet,
+        description="Morning walk",
+        duration=30,
+        priority=5,
+        status="PENDING",
+        assigned_time=datetime.combine(date.today(), time(hour=9, minute=0)),
+    )
+    t2 = PetCareTask(
+        task_id="task-8",
+        task_type=TaskType.FEEDING,
+        pet=pet,
+        description="Breakfast",
+        duration=10,
+        priority=6,
+        status="PENDING",
+        assigned_time=datetime.combine(date.today(), time(hour=9, minute=15)),
+    )
+    t3 = PetCareTask(
+        task_id="task-9",
+        task_type=TaskType.GROOMING,
+        pet=pet,
+        description="Brushing",
+        duration=15,
+        priority=3,
+        status="PENDING",
+        assigned_time=datetime.combine(date.today(), time(hour=10, minute=0)),
+    )
+
+    pet.add_task(t1)
+    pet.add_task(t2)
+    pet.add_task(t3)
+
+    system = PetManagementSystem(system_id="sys-2")
+    system.add_pet_owner(owner)
+    plan = system.generate_daily_plan(owner, date.today())
+
+    conflicts = plan.detect_conflicts()
+    assert len(conflicts) == 1
+
+    a, b = conflicts[0]
+    assert {a.task_id, b.task_id} == {"task-7-" + date.today().isoformat(), "task-8-" + date.today().isoformat()}
+
 
