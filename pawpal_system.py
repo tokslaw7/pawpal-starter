@@ -20,31 +20,50 @@ class TaskType(Enum):
 
 class PetManagementSystem:
 	def __init__(self, system_id: str) -> None:
+		"""Initialize the pet management system with a unique ID."""
 		self.system_id: str = system_id
 		self.owners: List[PetOwner] = []
 		self.daily_plans: List[DailyPlan] = []
 
 	def add_pet_owner(self, owner: PetOwner) -> None:
-		pass
+		"""Add a pet owner if they aren't already in the system."""
+		if self.get_pet_owner(owner.owner_id) is None:
+			self.owners.append(owner)
 
 	def add_pet(self, owner: PetOwner, pet: Pet) -> None:
-		pass
+		"""Add a pet to an owner, creating the owner record if needed."""
+		if owner not in self.owners:
+			self.add_pet_owner(owner)
+		owner.add_pet(pet)
 
 	def add_constraint(self, owner: PetOwner, constraint: Constraint) -> None:
-		pass
+		"""Add a scheduling constraint to an owner."""
+		if owner not in self.owners:
+			self.add_pet_owner(owner)
+		owner.add_constraint(constraint)
 
 	def generate_daily_plan(self, owner: PetOwner, plan_date: date) -> DailyPlan:
-		pass
+		"""Generate a daily plan for an owner by collecting all pet tasks and constraints."""
+		plan = DailyPlan(plan_id=f"plan-{owner.owner_id}-{plan_date.isoformat()}", plan_date=plan_date, owner=owner, created_at=datetime.now())
+		plan.constraints = list(owner.constraints)
+		for pet in owner.pets:
+			for task in pet.tasks:
+				plan.add_task(task)
+		self.daily_plans.append(plan)
+		return plan
 
 	def get_pet_owner(self, owner_id: str) -> Optional[PetOwner]:
-		pass
+		"""Retrieve an owner by owner_id."""
+		return next((o for o in self.owners if o.owner_id == owner_id), None)
 
 	def get_daily_plan(self, plan_id: str) -> Optional[DailyPlan]:
-		pass
+		"""Retrieve a daily plan by plan_id."""
+		return next((p for p in self.daily_plans if p.plan_id == plan_id), None)
 
 
 class PetOwner:
 	def __init__(self, owner_id: str, name: str, email: str, phone: str) -> None:
+		"""Initialize a pet owner profile with contact details, pets, and constraints."""
 		self.owner_id: str = owner_id
 		self.name: str = name
 		self.email: str = email
@@ -53,19 +72,26 @@ class PetOwner:
 		self.constraints: List[Constraint] = []
 
 	def add_pet(self, pet: Pet) -> None:
-		pass
+		"""Add a pet to this owner's list."""
+		if pet not in self.pets:
+			self.pets.append(pet)
 
 	def remove_pet(self, pet_id: str) -> None:
-		pass
+		"""Remove a pet from the owner's list by pet_id."""
+		self.pets = [pet for pet in self.pets if pet.pet_id != pet_id]
 
 	def add_constraint(self, constraint: Constraint) -> None:
-		pass
+		"""Add a scheduling constraint for the owner."""
+		if constraint not in self.constraints:
+			self.constraints.append(constraint)
 
 	def get_pets(self) -> List[Pet]:
-		pass
+		"""Return all pets owned by this owner."""
+		return self.pets
 
 	def get_constraints(self) -> List[Constraint]:
-		pass
+		"""Return all constraints associated with this owner."""
+		return self.constraints
 
 
 class Pet:
@@ -80,6 +106,7 @@ class Pet:
 		special_needs: str,
 		owner: PetOwner,
 	) -> None:
+		"""Initialize a pet profile and bind it to an owner."""
 		self.pet_id: str = pet_id
 		self.name: str = name
 		self.species: str = species
@@ -88,15 +115,27 @@ class Pet:
 		self.weight: float = weight
 		self.special_needs: str = special_needs
 		self.owner: PetOwner = owner
+		self.tasks: List[PetCareTask] = []
 
 	def get_name(self) -> str:
-		pass
+		"""Return the pet's name."""
+		return self.name
 
 	def get_species(self) -> str:
-		pass
+		"""Return the pet's species."""
+		return self.species
 
 	def get_special_needs(self) -> str:
-		pass
+		"""Return the pet's special needs description."""
+		return self.special_needs
+
+	def add_task(self, task: PetCareTask) -> None:
+		"""Add a care task to this pet."""
+		self.tasks.append(task)
+
+	def remove_task(self, task_id: str) -> None:
+		"""Remove a task from this pet by task ID."""
+		self.tasks = [task for task in self.tasks if task.task_id != task_id]
 
 
 class PetCareTask:
@@ -123,16 +162,21 @@ class PetCareTask:
 		self.completed_time: Optional[datetime] = completed_time
 
 	def mark_complete(self) -> None:
-		pass
+		"""Mark this task as completed and record completion time."""
+		self.status = "COMPLETED"
+		self.completed_time = datetime.now()
 
 	def update_status(self, status: str) -> None:
-		pass
+		"""Update the status of this task."""
+		self.status = status
 
 	def get_priority(self) -> int:
-		pass
+		"""Return this task's priority ranking."""
+		return self.priority
 
 	def is_urgent(self) -> bool:
-		pass
+		"""Determine whether this task is urgent with priority or medical type."""
+		return self.priority >= 8 or self.task_type == TaskType.MEDICAL
 
 
 class Constraint:
@@ -145,6 +189,7 @@ class Constraint:
 		end_time: time,
 		owner: PetOwner,
 		is_active: bool,
+		allow_window: bool = True,
 	) -> None:
 		self.constraint_id: str = constraint_id
 		self.description: str = description
@@ -153,12 +198,29 @@ class Constraint:
 		self.end_time: time = end_time
 		self.owner: PetOwner = owner
 		self.is_active: bool = is_active
+		self.allow_window: bool = allow_window
 
 	def is_violated(self, task: PetCareTask) -> bool:
-		pass
+		"""Evaluate whether a task violates this constraint."""
+		if not self.is_active or task.assigned_time is None:
+			return False
+
+		in_window = self.start_time <= task.assigned_time.time() <= self.end_time
+		if self.allow_window:
+			# Allowed window: violation if task is outside
+			return not in_window
+		else:
+			# Protected (blocked) window: violation if task is inside
+			return in_window
 
 	def get_available_time_slots(self) -> List[TimeSlot]:
-		pass
+		"""Get available time slots for this constraint, if it defines an allow window."""
+		if not self.is_active:
+			return []
+		if self.allow_window:
+			return [(self.start_time, self.end_time)]
+		# blocked windows are not available slots
+		return []
 
 
 class DailyPlan:
@@ -169,6 +231,7 @@ class DailyPlan:
 		owner: PetOwner,
 		created_at: datetime,
 	) -> None:
+		"""Initialize a daily plan for an owner with tasks and constraints."""
 		self.plan_id: str = plan_id
 		self.date: date = plan_date
 		self.owner: PetOwner = owner
@@ -177,16 +240,29 @@ class DailyPlan:
 		self.created_at: datetime = created_at
 
 	def add_task(self, task: PetCareTask) -> None:
-		pass
+		"""Add a task to the daily plan if not already present."""
+		if task not in self.tasks:
+			self.tasks.append(task)
 
 	def remove_task(self, task_id: str) -> None:
-		pass
+		"""Remove a task from the daily plan by task ID."""
+		self.tasks = [task for task in self.tasks if task.task_id != task_id]
 
 	def optimize_plan(self) -> None:
-		pass
+		"""Optimize task order based on task priority and duration."""
+		self.tasks.sort(key=lambda t: (-t.priority, t.task_type.name, t.duration))
 
 	def generate_schedule(self) -> str:
-		pass
+		"""Generate a human-readable schedule string for today."""
+		lines = []
+		for t in self.tasks:
+			when = t.assigned_time.isoformat() if t.assigned_time else "unassigned"
+			lines.append(f"{when} - {t.task_type.name}: {t.description} ({t.pet.name})")
+		return "\n".join(lines)
 
 	def validate_against_constraints(self) -> bool:
-		pass
+		"""Validate tasks against all constraints and return True if none are violated."""
+		for task in self.tasks:
+			if any(constraint.is_violated(task) for constraint in self.constraints):
+				return False
+		return True
