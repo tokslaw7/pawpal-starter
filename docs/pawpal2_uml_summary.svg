@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="920" viewBox="0 0 1400 920">
+  <defs>
+    <style>
+      .title { font: 700 30px 'Segoe UI', Arial, sans-serif; fill: #12324a; }
+      .subtitle { font: 500 16px 'Segoe UI', Arial, sans-serif; fill: #2a4d69; }
+      .box { fill: #f6fbff; stroke: #2a6f97; stroke-width: 2; rx: 12; }
+      .name { font: 700 18px 'Segoe UI', Arial, sans-serif; fill: #0f3554; }
+      .text { font: 14px 'Consolas', 'Courier New', monospace; fill: #17344a; }
+      .line { stroke: #2a6f97; stroke-width: 2; marker-end: url(#arrow); }
+      .legend { font: 13px 'Segoe UI', Arial, sans-serif; fill: #23445f; }
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L9,3 z" fill="#2a6f97" />
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1400" height="920" fill="#eef7ff" />
+  <text x="36" y="52" class="title">PawPal+ UML Summary (Code-Aligned)</text>
+  <text x="36" y="78" class="subtitle">Detailed editable Mermaid source lives in pawpal2_design.md</text>
+
+  <rect x="40" y="120" width="300" height="130" class="box" />
+  <text x="58" y="150" class="name">PetManagementSystem</text>
+  <text x="58" y="178" class="text">+ generate_daily_plan(...)</text>
+  <text x="58" y="200" class="text">+ get_pet_owner(...)</text>
+  <text x="58" y="222" class="text">+ get_daily_plan(...)</text>
+
+  <rect x="390" y="120" width="280" height="130" class="box" />
+  <text x="408" y="150" class="name">PetOwner</text>
+  <text x="408" y="178" class="text">pets, constraints</text>
+  <text x="408" y="200" class="text">+ add_pet(...)</text>
+  <text x="408" y="222" class="text">+ add_constraint(...)</text>
+
+  <rect x="720" y="120" width="280" height="130" class="box" />
+  <text x="738" y="150" class="name">Pet</text>
+  <text x="738" y="178" class="text">tasks: List[PetCareTask]</text>
+  <text x="738" y="200" class="text">+ add_task(...)</text>
+  <text x="738" y="222" class="text">+ remove_task(...)</text>
+
+  <rect x="1050" y="120" width="300" height="180" class="box" />
+  <text x="1068" y="150" class="name">PetCareTask</text>
+  <text x="1068" y="178" class="text">recurrence, recurrence_end_date</text>
+  <text x="1068" y="200" class="text">+ mark_complete() -&gt; Optional[Task]</text>
+  <text x="1068" y="222" class="text">+ occurs_on(date)</text>
+  <text x="1068" y="244" class="text">+ get_instance_for_date(date)</text>
+  <text x="1068" y="266" class="text">+ get_end_time()</text>
+
+  <rect x="280" y="360" width="320" height="150" class="box" />
+  <text x="298" y="390" class="name">Constraint</text>
+  <text x="298" y="418" class="text">constraint_type, allow_window</text>
+  <text x="298" y="440" class="text">+ is_violated(task)</text>
+  <text x="298" y="462" class="text">+ get_available_time_slots()</text>
+
+  <rect x="720" y="340" width="430" height="230" class="box" />
+  <text x="738" y="370" class="name">DailyPlan</text>
+  <text x="738" y="398" class="text">+ sort_tasks_by_time()</text>
+  <text x="738" y="420" class="text">+ filter_tasks(pet_id, status)</text>
+  <text x="738" y="442" class="text">+ filter_by_status(status)</text>
+  <text x="738" y="464" class="text">+ detect_conflicts()</text>
+  <text x="738" y="486" class="text">+ validate_conflicts()</text>
+  <text x="738" y="508" class="text">+ validate_against_constraints()</text>
+  <text x="738" y="530" class="text">+ generate_schedule()</text>
+
+  <line x1="340" y1="185" x2="390" y2="185" class="line" />
+  <line x1="670" y1="185" x2="720" y2="185" class="line" />
+  <line x1="1000" y1="185" x2="1050" y2="185" class="line" />
+  <line x1="500" y1="250" x2="430" y2="360" class="line" />
+  <line x1="860" y1="250" x2="900" y2="340" class="line" />
+  <line x1="1140" y1="300" x2="1040" y2="340" class="line" />
+
+  <text x="40" y="635" class="legend">Associations: PetManagementSystem -&gt; PetOwner, DailyPlan | PetOwner -&gt; Pet, Constraint | Pet -&gt; PetCareTask | DailyPlan -&gt; PetCareTask, Constraint, PetOwner</text>
+  <text x="40" y="662" class="legend">This SVG is a compact visual summary. Use the Mermaid block in pawpal2_design.md for the full, exact class/member listing.</text>
+</svg>

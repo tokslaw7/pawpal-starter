@@ -42,7 +42,6 @@ from pawpal_system import (
     PetOwner,
     Pet,
     PetCareTask,
-    Constraint,
     TaskType,
 )
 
@@ -83,6 +82,19 @@ st.divider()
 st.subheader("Build Schedule")
 st.caption("This button should call your scheduling logic once you implement it.")
 
+
+def to_task_row(task: PetCareTask) -> dict[str, str | int]:
+    assigned = task.assigned_time.strftime("%H:%M") if task.assigned_time else "Unassigned"
+    return {
+        "Time": assigned,
+        "Task": task.description,
+        "Type": task.task_type.name,
+        "Pet": task.pet.name,
+        "Duration (min)": task.duration,
+        "Priority": task.priority,
+        "Status": task.status,
+    }
+
 if st.button("Generate schedule"):
     if not st.session_state.tasks:
         st.warning("Add at least one task before generating a schedule.")
@@ -120,10 +132,42 @@ if st.button("Generate schedule"):
         pet.add_task(task)
 
     plan = system.generate_daily_plan(owner, date.today())
-    plan.optimize_plan()
 
-    st.success("Schedule generated!")
-    st.write(plan.generate_schedule())
+    # Use the system's chronological sorting method for schedule display.
+    plan.sort_tasks_by_time()
+    sorted_tasks = plan.tasks
+    pending_tasks = plan.filter_by_status("PENDING")
+    completed_tasks = plan.filter_by_status("COMPLETED")
+    conflicts = plan.detect_conflicts()
+
+    st.success("Schedule generated and sorted by time.")
+    st.write("Sorted schedule")
+    st.table([to_task_row(task) for task in sorted_tasks])
+
+    st.write("Pending tasks")
+    st.table([to_task_row(task) for task in pending_tasks])
+
+    st.write("Completed tasks")
+    if completed_tasks:
+        st.table([to_task_row(task) for task in completed_tasks])
+    else:
+        st.info("No completed tasks yet.")
+
+    if conflicts:
+        st.warning(f"Detected {len(conflicts)} scheduling conflict(s).")
+        conflict_rows = []
+        for first, second in conflicts:
+            first_time = first.assigned_time.strftime("%H:%M") if first.assigned_time else "Unassigned"
+            second_time = second.assigned_time.strftime("%H:%M") if second.assigned_time else "Unassigned"
+            conflict_rows.append(
+                {
+                    "Task A": f"{first_time} - {first.description}",
+                    "Task B": f"{second_time} - {second.description}",
+                }
+            )
+        st.table(conflict_rows)
+    else:
+        st.info("No scheduling conflicts detected.")
 
     if plan.validate_against_constraints():
         st.info("Constraints check passed")
