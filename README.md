@@ -98,6 +98,8 @@ streamlit run app.py
 
 The final Streamlit demo is implemented in `app.py`.
 
+![PawPal App](images/pawpal%20app.png)
+
 Demo flow:
 
 1. Enter owner and pet details.
