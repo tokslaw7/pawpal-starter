@@ -90,6 +90,9 @@ Run the Streamlit app:
 ```bash
 streamlit run app.py
 ```
+### UML FINAL 
+
+![UML FINAL](uml_final.png)
 
 ## Demo (Final Streamlit App)
 
