@@ -1,67 +1,124 @@
-# PawPal+ (Module 2 Project)
+# PawPal+
 
-You are building **PawPal+**, a Streamlit app that helps a pet owner plan care tasks for their pet.
+PawPal+ is a pet care planning application with a Python scheduling engine and a Streamlit interface.
+It helps a pet owner organize daily care tasks, account for timing constraints, detect schedule conflicts,
+and review actionable plan output in a clean UI.
 
-## Scenario
+## Table of Contents
 
-A busy pet owner needs help staying consistent with pet care. They want an assistant that can:
+- [Overview](#overview)
+- [Core Features](#core-features)
+- [System Design](#system-design)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Demo (Final Streamlit App)](#demo-final-streamlit-app)
+- [Testing](#testing)
 
-- Track pet care tasks (walks, feeding, meds, enrichment, grooming, etc.)
-- Consider constraints (time available, priority, owner preferences)
-- Produce a daily plan and explain why it chose that plan
+## Overview
 
-Your job is to design the system first (UML), then implement the logic in Python, then connect it to the Streamlit UI.
+PawPal+ models a complete planning workflow:
 
-## What you will build
+1. Store owner, pet, task, and constraint data.
+2. Expand recurring tasks into date-specific daily task instances.
+3. Sort, filter, and validate daily plans.
+4. Surface conflicts and status summaries in Streamlit.
 
-Your final app should:
+## Core Features
 
-- Let a user enter basic owner + pet info
-- Let a user add/edit tasks (duration + priority at minimum)
-- Generate a daily schedule/plan based on constraints and priorities
-- Display the plan clearly (and ideally explain the reasoning)
-- Include tests for the most important scheduling behaviors
+### Scheduling Algorithms
 
-## Smarter Scheduling
+- Date-based task instancing:
+	`PetManagementSystem.generate_daily_plan` creates a day-specific plan by calling `PetCareTask.get_instance_for_date` for each task.
+- Recurrence evaluation:
+	`PetCareTask.occurs_on` supports `DAILY`, `WEEKLY`, and `MONTHLY` recurrence rules with optional end-date boundaries.
+- Auto-rescheduling on completion:
+	`PetCareTask.mark_complete` sets task status/time and creates the next daily occurrence when recurrence rules allow.
+- Chronological ordering:
+	`DailyPlan.sort_tasks_by_time` sorts by `assigned_time` and moves unassigned tasks to the end.
+- Conflict detection:
+	`DailyPlan.detect_conflicts` identifies overlapping timed tasks using sorted-forward comparison with early stopping.
+- Constraint validation:
+	`DailyPlan.validate_against_constraints` verifies both no time overlaps and no owner-constraint violations.
 
-Recent scheduling improvements include:
+### Plan Review Utilities
 
-- Time-based sorting so daily plans are shown in chronological order.
-- Task filtering by pet and completion status (for example, pending vs completed).
-- Recurring task support (daily, weekly, monthly) with daily auto-rescheduling on completion.
-- Conflict detection for overlapping task durations, with clear warnings when tasks collide.
-- Constraint-aware validation that checks both owner constraints and schedule conflicts.
+- Filter by pet and status: `DailyPlan.filter_tasks`.
+- Filter by status only: `DailyPlan.filter_by_status`.
+- Human-readable schedule export: `DailyPlan.generate_schedule`.
 
-## Testing Pawpal+
+### Streamlit Experience
 
-Run the automated tests with:
+- Quick input flow for owner, pet, and tasks.
+- Professional schedule presentation using `st.success`, `st.warning`, `st.info`, and `st.table`.
+- Separate table views for sorted schedule, pending tasks, completed tasks, and conflict pairs.
 
-python -m pytest
+## System Design
 
-Current tests focus on core scheduling reliability, including:
+- Backend domain model: `pawpal_system.py`
+- Streamlit app: `app.py`
+- Tests: `tests/test_pawpal.py`
+- Updated UML doc: `pawpal2_design.md`
 
-- Marking tasks complete and recording completion timestamps.
-- Adding tasks to pets and confirming task list updates.
-- Generating/sorting daily plans, filtering by pet/status, and including recurring tasks.
-- Auto-creating the next daily recurring task after completion.
-- Detecting overlaps between scheduled tasks to surface conflicts.
-
-## Getting started
-
-### Setup
+## Installation
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+```
+
+Windows PowerShell:
+
+```powershell
+.venv\Scripts\Activate.ps1
+```
+
+macOS/Linux:
+
+```bash
+source .venv/bin/activate
+```
+
+Install dependencies:
+
+```bash
 pip install -r requirements.txt
 ```
 
-### Suggested workflow
+## Usage
 
-1. Read the scenario carefully and identify requirements and edge cases.
-2. Draft a UML diagram (classes, attributes, methods, relationships).
-3. Convert UML into Python class stubs (no logic yet).
-4. Implement scheduling logic in small increments.
-5. Add tests to verify key behaviors.
-6. Connect your logic to the Streamlit UI in `app.py`.
-7. Refine UML so it matches what you actually built.
+Run the Streamlit app:
+
+```bash
+streamlit run app.py
+```
+
+## Demo (Final Streamlit App)
+
+The final Streamlit demo is implemented in `app.py`.
+
+Demo flow:
+
+1. Enter owner and pet details.
+2. Add one or more tasks with duration and priority.
+3. Click **Generate schedule**.
+4. Review output sections:
+	 - Sorted schedule table
+	 - Pending tasks table
+	 - Completed tasks table
+	 - Conflict warning + conflict details table (if overlaps exist)
+	 - Constraint validation status
+
+## Testing
+
+Run all tests:
+
+```bash
+python -m pytest
+```
+
+Current automated tests validate:
+
+- Task completion status and timestamp assignment.
+- Pet task collection updates.
+- Daily plan generation with sorting/filtering behavior.
+- Recurring daily task auto-generation after completion.
+- Conflict detection for overlapping tasks.
