@@ -6,6 +6,9 @@ This design reflects the final implementation in pawpal_system.py, including rec
 
 ![PawPal+ UML Summary](docs/pawpal2_uml_summary.svg)
 
+![UML FINAL](uml_final.png)
+
+
 ## Mermaid Source (Editable)
 
 ```mermaid
